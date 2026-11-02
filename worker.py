@@ -599,19 +599,45 @@ def replicate_telegram(local_path, filename, bot_token, api_id, api_hash, channe
     log("[*] Connecting directly to Telegram MTProto Cluster (Zero-VPS Bandwidth)...")
     import asyncio
     from telethon import TelegramClient
+    from telethon.tl.types import DocumentAttributeFilename, DocumentAttributeVideo
+
+    clean_name = filename if filename else "video.mkv"
+    named_path = os.path.join(tempfile.gettempdir(), clean_name)
+    cleanup_named = False
+    upload_target = local_path
+    try:
+        if not os.path.exists(named_path):
+            try:
+                os.link(local_path, named_path)
+                upload_target = named_path
+                cleanup_named = True
+            except Exception:
+                try:
+                    os.symlink(local_path, named_path)
+                    upload_target = named_path
+                    cleanup_named = True
+                except Exception:
+                    upload_target = local_path
+        else:
+            upload_target = named_path
+    except Exception:
+        upload_target = local_path
 
     async def _upload():
         client = TelegramClient(f"tg_shard_{os.getpid()}", int(api_id), api_hash)
         await client.start(bot_token=bot_token)
         try:
             target_peer = int(channel_id) if str(channel_id).startswith("-100") or str(channel_id).lstrip("-").isdigit() else channel_id
-            log(f"[*] Streaming {filename} to Telegram channel {channel_id} (MTProto multi-chunk)...")
+            log(f"[*] Streaming {clean_name} to Telegram channel {channel_id} (MTProto multi-chunk)...")
             msg = await client.send_file(
                 target_peer,
-                local_path,
-                caption=f"📁 {filename}",
-                force_document=True,
-                supports_streaming=True
+                upload_target,
+                caption=f"🎬 **{clean_name}**\n\n⚡ Streamed via **MHB Automation Engine**",
+                attributes=[
+                    DocumentAttributeFilename(file_name=clean_name),
+                    DocumentAttributeVideo(duration=0, w=1920, h=1080, supports_streaming=True)
+                ],
+                part_size_kb=512
             )
             log(f"[✓] Telegram upload succeeded! MsgID: {msg.id}")
             return msg.id
@@ -625,6 +651,11 @@ def replicate_telegram(local_path, filename, bot_token, api_id, api_hash, channe
         return msg_id
     finally:
         loop.close()
+        if cleanup_named and os.path.exists(named_path):
+            try:
+                os.remove(named_path)
+            except Exception:
+                pass
 
 
 def report_telemetry_receipt(callback_url, callback_token, payload):
