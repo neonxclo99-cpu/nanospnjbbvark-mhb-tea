@@ -43,7 +43,7 @@ jobs:
 
       - name: Install Shard Telemetry Drivers
         run: |
-          pip install --no-cache-dir requests boto3
+          pip install --no-cache-dir requests boto3 telethon
 
       - name: Execute Cluster Shard Replication
         run: |
