@@ -1003,6 +1003,11 @@ def main():
         def worker_tg():
             nonlocal tg_msg_id
             if tg_active and tg_token and tg_api_id and tg_api_hash and tg_channel:
+                # 2GB File Size Limit Guard (Telegram Free Account Limit)
+                max_tg_bytes = 2 * 1024 * 1024 * 1024
+                if file_size > max_tg_bytes:
+                    log(f"[!] Target Telegram SKIPPED: file size ({file_size / (1024*1024*1024):.2f} GB) exceeds 2.0GB Telegram limit. Other destinations will proceed normally.")
+                    return
                 try:
                     tg_msg_id = replicate_telegram(
                         temp_file, filename, tg_token, tg_api_id, tg_api_hash, tg_channel
