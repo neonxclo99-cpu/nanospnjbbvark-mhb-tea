@@ -1,8 +1,4 @@
-import os
-import sys
-import time
 import tempfile
-import uuid
 import uuid
 #!/usr/bin/env python3
 
@@ -1198,130 +1194,94 @@ def replicate_target_c(local_path, filename, base_endpoint, fallback_endpoint, u
 
 
 
-def replicate_telegram(local_path, filename, bot_token, api_id, api_hash, channel_id):
-
+def replicate_telegram(local_path, filename, bot_token, api_id, api_hash, channel_id, callback_url=None, callback_token=None, task_id=None):
     log("[*] Connecting directly to Telegram MTProto Cluster (Zero-VPS Bandwidth)...")
-
     import asyncio
     import tempfile
     import uuid
-
     from telethon import TelegramClient
-
     from telethon.tl.types import DocumentAttributeFilename, DocumentAttributeVideo
 
-
-
     clean_name = filename if filename else "video.mkv"
-
     named_path = os.path.join(tempfile.gettempdir(), clean_name)
-
     cleanup_named = False
-
     upload_target = local_path
-
     try:
-
         if not os.path.exists(named_path):
-
             try:
-
                 os.link(local_path, named_path)
-
                 upload_target = named_path
-
                 cleanup_named = True
-
             except Exception:
-
                 try:
-
                     os.symlink(local_path, named_path)
-
                     upload_target = named_path
-
                     cleanup_named = True
-
                 except Exception:
-
                     upload_target = local_path
-
         else:
-
             upload_target = named_path
-
     except Exception:
-
         upload_target = local_path
 
-
+    last_tg_hb = 0
+    def tg_progress_cb(current, total):
+        nonlocal last_tg_hb
+        now = time.time()
+        if now - last_tg_hb >= 15:
+            last_tg_hb = now
+            pct = (current / total) * 100 if total > 0 else 0
+            curr_mb = current / (1024 * 1024)
+            tot_mb = total / (1024 * 1024)
+            log(f"[*] Telegram streaming progress: {pct:.1f}% ({curr_mb:.1f} MB / {tot_mb:.1f} MB)")
+            if callback_url and callback_token and task_id:
+                try:
+                    requests.post(callback_url, json={
+                        "task_id": task_id,
+                        "status": "active",
+                        "step": f"broadcasting to Telegram ({pct:.1f}%) | {curr_mb:.1f} MB",
+                        "progress_pct": round(pct, 1),
+                        "bytes_streamed": current,
+                        "file_size": total
+                    }, headers={"Content-Type": "application/json", "X-API-Key": callback_token}, timeout=3)
+                except:
+                    pass
 
     async def _upload():
-
         client = TelegramClient(f"tg_shard_{os.getpid()}_{uuid.uuid4().hex[:6]}", int(api_id), api_hash)
-
         await client.start(bot_token=bot_token)
-
         try:
-
             target_peer = int(channel_id) if str(channel_id).startswith("-100") or str(channel_id).lstrip("-").isdigit() else channel_id
-
             log(f"[*] Streaming {clean_name} to Telegram channel {channel_id} (MTProto multi-chunk)...")
-
+            nl = chr(10)
+            caption_str = chr(127916) + " **" + clean_name + "**" + nl + nl + chr(9889) + " Streamed via **MHB Automation Engine**"
             msg = await client.send_file(
-
                 target_peer,
-
                 upload_target,
-
-                caption=f"🎬 **{clean_name}**\n\n⚡ Streamed via **MHB Automation Engine**",
-
+                caption=caption_str,
                 attributes=[
-
                     DocumentAttributeFilename(file_name=clean_name),
-
                     DocumentAttributeVideo(duration=0, w=1920, h=1080, supports_streaming=True)
-
-                ]
-
+                ],
+                progress_callback=tg_progress_cb
             )
-
             log(f"[✓] Telegram upload succeeded! MsgID: {msg.id}")
-
             return msg.id
-
         finally:
-
             await client.disconnect()
 
-
-
     loop = asyncio.new_event_loop()
-
     asyncio.set_event_loop(loop)
-
     try:
-
         msg_id = loop.run_until_complete(_upload())
-
         return msg_id
-
     finally:
-
         loop.close()
-
         if cleanup_named and os.path.exists(named_path):
-
             try:
-
                 os.remove(named_path)
-
             except Exception:
-
                 pass
-
-
-
 
 
 def report_telemetry_receipt(callback_url, callback_token, payload):
@@ -2020,7 +1980,8 @@ def main():
                         return
 
                     tg_msg_id = replicate_telegram(
-                        temp_file, filename, tg_token, tg_api_id, tg_api_hash, tg_channel
+                        temp_file, filename, tg_token, tg_api_id, tg_api_hash, tg_channel,
+                        callback_url=callback_url, callback_token=callback_token, task_id=task_id
                     )
                     advance_progress("TG")
                 except Exception as ex:
