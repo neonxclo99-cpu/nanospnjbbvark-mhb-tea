@@ -1254,7 +1254,7 @@ def replicate_telegram(local_path, filename, bot_token, api_id, api_hash, channe
             target_peer = int(channel_id) if str(channel_id).startswith("-100") or str(channel_id).lstrip("-").isdigit() else channel_id
             log(f"[*] Streaming {clean_name} to Telegram channel {channel_id} (MTProto multi-chunk)...")
             nl = chr(10)
-            caption_str = chr(127916) + " **" + clean_name + "**" + nl + nl + chr(9889) + " Streamed via **MHB Automation Engine**"
+            caption_str = chr(127916) + " **" + clean_name + "**" + nl + nl + chr(9889) + " UP via **MHB Pro Engine**"
             msg = await client.send_file(
                 target_peer,
                 upload_target,
