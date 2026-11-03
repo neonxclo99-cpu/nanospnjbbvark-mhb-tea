@@ -1,3 +1,8 @@
+import os
+import sys
+import time
+import tempfile
+import uuid
 import uuid
 #!/usr/bin/env python3
 
@@ -1198,6 +1203,8 @@ def replicate_telegram(local_path, filename, bot_token, api_id, api_hash, channe
     log("[*] Connecting directly to Telegram MTProto Cluster (Zero-VPS Bandwidth)...")
 
     import asyncio
+    import tempfile
+    import uuid
 
     from telethon import TelegramClient
 
