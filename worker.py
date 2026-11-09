@@ -258,8 +258,8 @@ def replicate_target_a(local_path, filename, base_endpoint, view_endpoint, api_k
         
     if r.status_code in (200, 201):
         res = r.json()
-        if res.get("success"):
-            file_id = res.get("id")
+        file_id = res.get("id")
+        if file_id:
             page_url = f"{view_endpoint.rstrip('/')}/{file_id}"
             log(f"[✓] Target A Replication Complete: {page_url}")
             return file_id, page_url
