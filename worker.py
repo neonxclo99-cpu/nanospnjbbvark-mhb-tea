@@ -526,6 +526,13 @@ def main():
         tg_final_msg_id, tg_final_channel = None, None
         
         futures = {}
+        target_labels = {
+            "s3": "Cloudflare R2",
+            "target_a": "Pixeldrain",
+            "target_b": "Gofile",
+            "target_c": "Vikingfile",
+            "telegram": "Telegram",
+        }
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             if s3_active and s3_key and s3_sec:
                 futures[executor.submit(
@@ -558,8 +565,25 @@ def main():
                     callback_url, callback_token, task_id
                 )] = "telegram"
                 
+            total_active_targets = len(futures)
+            if total_active_targets > 0 and callback_url:
+                target_names = [target_labels.get(t, t) for t in futures.values()]
+                initial_step = f"uploading to {total_active_targets} targets ({', '.join(target_names)})"
+                report_telemetry_receipt(callback_url, callback_token, {
+                    "task_id": task_id,
+                    "file_id": target_shard_id,
+                    "filename": filename,
+                    "file_size": actual_size,
+                    "status": "active",
+                    "progress_pct": 52.0,
+                    "step": initial_step,
+                })
+
+            completed_targets = 0
+            done_labels = []
             for fut in concurrent.futures.as_completed(futures):
                 t_name = futures[fut]
+                lbl = target_labels.get(t_name, t_name)
                 try:
                     res = fut.result()
                     if t_name == "s3":
@@ -572,8 +596,35 @@ def main():
                         target_c_id, target_c_url = res
                     elif t_name == "telegram":
                         tg_final_msg_id, tg_final_channel = res
+                    done_labels.append(lbl)
                 except Exception as e:
                     log(f"[!] Warning: Replication worker '{t_name}' failed: {e}")
+                    done_labels.append(f"{lbl} (failed)")
+
+                completed_targets += 1
+                if total_active_targets > 0 and callback_url:
+                    pct = round(52.0 + (completed_targets / total_active_targets) * 45.0, 1)
+                    if pct >= 99.0:
+                        pct = 98.0
+                    step_msg = f"uploaded {completed_targets}/{total_active_targets} targets ({', '.join(done_labels)})"
+                    report_telemetry_receipt(callback_url, callback_token, {
+                        "task_id": task_id,
+                        "file_id": target_shard_id,
+                        "filename": filename,
+                        "file_size": actual_size,
+                        "status": "active",
+                        "progress_pct": pct,
+                        "step": step_msg,
+                        "relay_a_id": target_a_id,
+                        "relay_a_url": target_a_url,
+                        "relay_b_id": target_b_id,
+                        "relay_b_url": target_b_url,
+                        "relay_c_url": target_c_url,
+                        "s3_key": s3_final_key,
+                        "s3_url": s3_final_url or existing_s3_url,
+                        "telegram_msg_id": tg_final_msg_id,
+                        "telegram_channel_id": tg_final_channel,
+                    })
                     
         receipt = {
             "task_id": task_id,
