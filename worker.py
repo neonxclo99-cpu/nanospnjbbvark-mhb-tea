@@ -468,10 +468,10 @@ def main():
     target_c_active = cfg.get("t_c", True)
     
     tg_active = cfg.get("t_tg", False)
-    tg_bot_token = cfg.get("tg_bot", "")
-    tg_api_id = cfg.get("tg_id", "")
-    tg_api_hash = cfg.get("tg_hash", "")
-    tg_channel = cfg.get("tg_chan", "")
+    tg_bot_token = cfg.get("tg_token") or cfg.get("tg_bot", "")
+    tg_api_id = cfg.get("tg_api_id") or cfg.get("tg_id", "")
+    tg_api_hash = cfg.get("tg_api_hash") or cfg.get("tg_hash", "")
+    tg_channel = cfg.get("tg_channel") or cfg.get("tg_chan", "")
     
     log("===========================================================")
     log(f"[*] Initializing Parallel Cluster Shard Worker for: {task_id}")
