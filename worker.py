@@ -360,6 +360,7 @@ def replicate_telegram(local_path, filename, bot_token, api_id, api_hash, channe
     log("[*] Connecting directly to Telegram MTProto Cluster (Zero-VPS Bandwidth)...")
     import asyncio
     from telethon import TelegramClient
+    from telethon.tl.types import DocumentAttributeFilename, DocumentAttributeVideo
 
     file_size = os.path.getsize(local_path)
     total_mb = file_size / (1024 * 1024)
@@ -389,19 +390,49 @@ def replicate_telegram(local_path, filename, bot_token, api_id, api_hash, channe
                     pass
 
     async def _send_file():
+        # Ensure clean on-disk file link with true movie filename
+        upload_path = local_path
+        clean_dir = os.path.dirname(local_path)
+        clean_path = os.path.join(clean_dir, filename)
+        created_link = False
+        if clean_path != local_path and not os.path.exists(clean_path):
+            try:
+                os.link(local_path, clean_path)
+                upload_path = clean_path
+                created_link = True
+            except Exception:
+                try:
+                    os.symlink(local_path, clean_path)
+                    upload_path = clean_path
+                    created_link = True
+                except Exception:
+                    upload_path = local_path
+
         session_name = f"worker_session_{int(time.time())}"
         client = TelegramClient(session_name, int(api_id), api_hash)
         await client.start(bot_token=bot_token)
         target_peer = int(channel_id) if (str(channel_id).startswith("-100") or str(channel_id).isdigit()) else channel_id
-        msg = await client.send_file(
-            target_peer,
-            local_path,
-            caption=f"📁 {filename}",
-            supports_streaming=True,
-            progress_callback=tg_progress
-        )
-        await client.disconnect()
-        return msg.id
+        
+        try:
+            msg = await client.send_file(
+                target_peer,
+                upload_path,
+                caption=f"🎬 **{filename}**\n\n⚡ Streamed via **MHB Automation Engine**",
+                attributes=[
+                    DocumentAttributeFilename(filename),
+                    DocumentAttributeVideo(duration=0, w=1920, h=1080, supports_streaming=True)
+                ],
+                supports_streaming=True,
+                progress_callback=tg_progress
+            )
+            await client.disconnect()
+            return msg.id
+        finally:
+            if created_link and os.path.exists(clean_path):
+                try:
+                    os.remove(clean_path)
+                except Exception:
+                    pass
 
     try:
         loop = asyncio.new_event_loop()
